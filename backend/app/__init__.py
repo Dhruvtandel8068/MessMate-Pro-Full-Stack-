@@ -33,11 +33,6 @@ def seed_admin_and_categories(app):
                 existing.role = "admin"
                 updated = True
 
-            # Optional: if old admin password was stored in plain text or old/wrong format,
-            # uncomment below to force-reset admin password on every startup.
-            # existing.set_password(admin_password)
-            # updated = True
-
             if updated:
                 print("Existing admin updated successfully.")
             else:
@@ -97,6 +92,7 @@ def create_app():
     from app.routes.notification_routes import notification_bp
     from app.routes.billing_routes import billing_bp
     from app.routes.attendance_routes import attendance_bp
+    from app.routes.leave_routes import leave_bp
 
     app.register_blueprint(auth_bp, url_prefix="/api/auth")
     app.register_blueprint(user_bp, url_prefix="/api")
@@ -108,6 +104,7 @@ def create_app():
     app.register_blueprint(notification_bp, url_prefix="/api/notifications")
     app.register_blueprint(billing_bp, url_prefix="/api/billing")
     app.register_blueprint(attendance_bp, url_prefix="/api")
+    app.register_blueprint(leave_bp, url_prefix="/api/leave")
 
     @app.get("/api/uploads/<path:filename>")
     def uploaded_file(filename):
@@ -122,6 +119,7 @@ def create_app():
         from app.models.notification import Notification
         from app.models.payment import Payment
         from app.models.expense import Expense
+        from app.models.leave import Leave
 
         db.create_all()
         seed_admin_and_categories(app)

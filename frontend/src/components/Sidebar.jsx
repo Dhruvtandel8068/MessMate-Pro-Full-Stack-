@@ -25,6 +25,11 @@ export default function Sidebar() {
             Attendance
           </NavLink>
 
+          {/* ← NEW: visible to both students and admin */}
+          <NavLink to="/leave" className="top-nav-link">
+            Leave
+          </NavLink>
+
           <NavLink to="/billing" className="top-nav-link">
             Billing
           </NavLink>

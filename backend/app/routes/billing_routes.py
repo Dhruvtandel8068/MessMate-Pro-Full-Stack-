@@ -1,7 +1,10 @@
 import os
 import hmac
 import hashlib
-import razorpay
+try:
+    import razorpay
+except ImportError:
+    razorpay = None
 import traceback
 from uuid import uuid4
 from io import BytesIO

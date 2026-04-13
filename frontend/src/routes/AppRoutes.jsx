@@ -13,6 +13,7 @@ import Expenses from "../pages/Expenses";
 import Reports from "../pages/Reports";
 import Inventory from "../pages/Inventory";
 import Users from "../pages/Users";
+import Leave from "../pages/Leave";                 // ← NEW
 import MainLayout from "../layouts/MainLayout";
 import ProtectedRoute from "../components/ProtectedRoute";
 import AdminRoute from "../components/AdminRoute";
@@ -41,24 +42,25 @@ export default function AppRoutes() {
       {/* Common routes for all logged-in users */}
       <Route element={<ProtectedRoute />}>
         <Route element={<MainLayout />}>
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/menu" element={<Menu />} />
-          <Route path="/attendance" element={<Attendance />} />
-          <Route path="/billing" element={<Billing />} />
-          <Route path="/complaints" element={<Complaints />} />
-          <Route path="/notifications" element={<Notifications />} />
-          <Route path="/profile" element={<Profile />} />
+          <Route path="/dashboard"       element={<Dashboard />} />
+          <Route path="/menu"            element={<Menu />} />
+          <Route path="/attendance"      element={<Attendance />} />
+          <Route path="/billing"         element={<Billing />} />
+          <Route path="/complaints"      element={<Complaints />} />
+          <Route path="/notifications"   element={<Notifications />} />
+          <Route path="/profile"         element={<Profile />} />
           <Route path="/change-password" element={<ChangePassword />} />
+          <Route path="/leave"           element={<Leave />} />  {/* ← NEW: both users and admin */}
         </Route>
       </Route>
 
       {/* Admin-only routes */}
       <Route element={<AdminRoute />}>
         <Route element={<MainLayout />}>
-          <Route path="/expenses" element={<Expenses />} />
-          <Route path="/reports" element={<Reports />} />
-          <Route path="/inventory" element={<Inventory />} />
-          <Route path="/users" element={<Users />} />
+          <Route path="/expenses"         element={<Expenses />} />
+          <Route path="/reports"          element={<Reports />} />
+          <Route path="/inventory"        element={<Inventory />} />
+          <Route path="/users"            element={<Users />} />
           <Route path="/payment-approval" element={<PaymentApproval />} />
         </Route>
       </Route>

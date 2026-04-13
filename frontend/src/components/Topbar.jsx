@@ -5,6 +5,7 @@ const pageTitles = {
   "/dashboard": "Dashboard",
   "/menu": "Meal Menu",
   "/attendance": "Attendance",
+  "/leave": "Leave Management",
   "/billing": "Billing",
   "/payment-approval": "Payment Approval",
   "/complaints": "Complaints",
