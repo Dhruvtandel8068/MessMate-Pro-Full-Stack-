@@ -361,6 +361,19 @@ def upload_payment(bill_id):
         if not is_admin() and bill.user_id != int(get_jwt_identity()):
             return jsonify({"message": "Not allowed"}), 403
 
+        if bill.status == "Paid":
+            return jsonify({"message": "This bill is already paid"}), 400
+
+        existing_pending_payment = Payment.query.filter_by(
+            bill_id=bill.id,
+            status="Pending"
+        ).first()
+
+        if existing_pending_payment:
+            return jsonify({
+                "message": "Payment proof already submitted for this bill and is waiting for admin approval"
+            }), 400
+
         mode = request.form.get("mode", "UPI").strip()
         receipt_no = request.form.get("receipt_no", "").strip()
         note = request.form.get("note", "").strip()
@@ -429,7 +442,16 @@ def list_pending_payments():
         if not is_admin():
             return jsonify({"message": "Only admin can view pending payments"}), 403
 
-        payments = Payment.query.filter_by(status="Pending").order_by(Payment.created_at.desc()).all()
+        payments = (
+            Payment.query
+            .join(Bill, Payment.bill_id == Bill.id)
+            .filter(
+                Payment.status == "Pending",
+                Bill.status != "Paid"
+            )
+            .order_by(Payment.created_at.desc())
+            .all()
+        )
 
         result = []
         for payment in payments:
@@ -462,11 +484,27 @@ def approve_payment(payment_id):
         data = request.get_json(silent=True) or {}
         admin_remark = (data.get("admin_remark") or "Payment approved").strip()
 
+        if payment.status == "Approved":
+            return jsonify({
+                "message": "This payment is already approved",
+                "payment": payment.to_dict(),
+            }), 200
+
         payment.status = "Approved"
         payment.admin_remark = admin_remark
 
         if payment.bill:
             payment.bill.status = "Paid"
+
+            other_pending_payments = Payment.query.filter(
+                Payment.bill_id == payment.bill_id,
+                Payment.id != payment.id,
+                Payment.status == "Pending"
+            ).all()
+
+            for other_payment in other_pending_payments:
+                other_payment.status = "Rejected"
+                other_payment.admin_remark = "Auto rejected because another payment was approved for this bill"
 
             create_notification(
                 title="Payment Approved",
@@ -489,6 +527,7 @@ def approve_payment(payment_id):
         return jsonify({
             "message": "Payment approved successfully",
             "payment": payment.to_dict(),
+            "bill": payment.bill.to_dict() if payment.bill else None,
         }), 200
 
     except Exception as e:
@@ -567,6 +606,9 @@ def create_razorpay_order(bill_id):
         if not key_id or not key_secret:
             return jsonify({"message": "Razorpay is not configured on the server. Contact admin."}), 500
 
+        if razorpay is None:
+            return jsonify({"message": "Razorpay package is not installed on the server"}), 500
+
         client = razorpay.Client(auth=(key_id, key_secret))
 
         amount_in_paise = int(float(bill.total_amount) * 100)
@@ -592,10 +634,6 @@ def create_razorpay_order(bill_id):
             "total_amount": float(bill.total_amount),
         }), 200
 
-    except razorpay.errors.BadRequestError as e:
-        print("RAZORPAY BAD REQUEST:", str(e))
-        traceback.print_exc()
-        return jsonify({"message": f"Razorpay error: {str(e)}"}), 400
     except Exception as e:
         print("RAZORPAY ORDER ERROR:", str(e))
         traceback.print_exc()
@@ -610,6 +648,9 @@ def verify_razorpay_payment(bill_id):
 
         if bill.user_id != int(get_jwt_identity()):
             return jsonify({"message": "Not allowed"}), 403
+
+        if bill.status == "Paid":
+            return jsonify({"message": "This bill is already paid"}), 400
 
         data = request.get_json() or {}
         razorpay_order_id = data.get("razorpay_order_id", "").strip()
@@ -632,45 +673,68 @@ def verify_razorpay_payment(bill_id):
             print(f"RAZORPAY SIGNATURE MISMATCH — bill_id={bill_id}")
             return jsonify({"message": "Payment verification failed — invalid signature"}), 400
 
+        existing_payment = Payment.query.filter(
+            Payment.bill_id == bill.id,
+            Payment.razorpay_payment_id == razorpay_payment_id
+        ).first()
+
+        if existing_payment:
+            return jsonify({
+                "message": "This Razorpay payment is already recorded",
+                "bill": bill.to_dict(),
+                "payment": existing_payment.to_dict(),
+            }), 200
+
+        existing_pending_payment = Payment.query.filter_by(
+            bill_id=bill.id,
+            status="Pending"
+        ).first()
+
+        if existing_pending_payment:
+            return jsonify({
+                "message": "A payment for this bill is already waiting for admin approval"
+            }), 400
+
         payment = Payment(
             bill_id=bill.id,
             mode="Razorpay",
-            status="Approved",
+            status="Pending",
             receipt_no=razorpay_payment_id,
             razorpay_order_id=razorpay_order_id,
             razorpay_payment_id=razorpay_payment_id,
             razorpay_signature=razorpay_signature,
+            note="Online payment done via Razorpay. Waiting for admin approval.",
         )
         db.session.add(payment)
-        bill.status = "Paid"
+
+        bill.status = "Pending Approval"
 
         user = bill.user if hasattr(bill, "user") else User.query.get(bill.user_id)
 
         create_notification(
-            title="Payment Successful",
+            title="Online Payment Submitted",
             message=(
-                f"Your Razorpay payment for {bill.period} was successful. "
-                f"Amount: ₹{float(bill.total_amount):.2f}. "
-                f"Ref: {razorpay_payment_id}"
+                f"Your Razorpay payment for {bill.period} was submitted successfully "
+                f"and is waiting for admin approval. Ref: {razorpay_payment_id}"
             ),
             user_id=bill.user_id,
-            notification_type="payment_approved",
+            notification_type="payment_submitted",
             action_url="/billing",
         )
 
         create_notification(
-            title="Online Payment Received",
+            title="Online Payment Waiting for Approval",
             message=(
                 f"Razorpay payment from {user.full_name if user else 'a user'} "
-                f"for {bill.period}. Amount: ₹{float(bill.total_amount):.2f}."
+                f"for {bill.period} is waiting for admin approval."
             ),
             role_target="admin",
-            notification_type="payment_approved",
-            action_url="/billing",
+            notification_type="payment_submitted",
+            action_url="/payment-approval",
         )
 
         if user and user.email:
-            send_payment_approved_email(
+            send_payment_submitted_email(
                 user_email=user.email,
                 user_name=user.full_name,
                 period=bill.period,
@@ -679,7 +743,7 @@ def verify_razorpay_payment(bill_id):
         db.session.commit()
 
         return jsonify({
-            "message": "Payment verified and confirmed successfully",
+            "message": "Payment submitted successfully and is waiting for admin approval",
             "bill": bill.to_dict(),
             "payment": payment.to_dict(),
         }), 200

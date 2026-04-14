@@ -167,11 +167,11 @@ export default function Billing() {
       formData.append("note", paymentNote[billId] || "");
       formData.append("mode", "UPI");
 
-      await api.post(`/billing/${billId}/pay`, formData, {
+      const res = await api.post(`/billing/${billId}/pay`, formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
 
-      alert("Payment proof submitted successfully. Waiting for admin approval.");
+      alert(res?.data?.message || "Payment proof submitted successfully");
       setPaymentFile((prev) => ({ ...prev, [billId]: null }));
       setPaymentNote((prev) => ({ ...prev, [billId]: "" }));
       closeQrModal();
@@ -194,7 +194,7 @@ export default function Billing() {
 
     try {
       const res = await api.post(`/billing/${bill.id}/razorpay-order`);
-      const { order_id, amount, currency, key_id, period, total_amount } = res.data;
+      const { order_id, amount, currency, key_id, period } = res.data;
 
       const options = {
         key: key_id,
@@ -205,17 +205,15 @@ export default function Billing() {
         order_id: order_id,
         handler: async function (response) {
           try {
-            await api.post(`/billing/${bill.id}/razorpay-verify`, {
+            const verifyRes = await api.post(`/billing/${bill.id}/razorpay-verify`, {
               razorpay_order_id: response.razorpay_order_id,
               razorpay_payment_id: response.razorpay_payment_id,
               razorpay_signature: response.razorpay_signature,
             });
 
             alert(
-              `✅ Payment successful!\n` +
-                `Amount: ₹${Number(total_amount).toFixed(2)} for ${period}\n` +
-                `Payment ID: ${response.razorpay_payment_id}\n\n` +
-                `Your bill is now marked as Paid.`
+              verifyRes?.data?.message ||
+                "Payment submitted successfully and is waiting for admin approval"
             );
 
             loadData();
@@ -272,28 +270,28 @@ export default function Billing() {
 
   const approvePayment = async (paymentId) => {
     try {
-      await api.put(`/billing/payments/${paymentId}/approve`, {
+      const res = await api.put(`/billing/payments/${paymentId}/approve`, {
         admin_remark: "Payment approved",
       });
-      alert("Payment approved successfully");
+      alert(res?.data?.message || "Payment approved successfully");
       loadData();
     } catch (error) {
       console.error(error);
-      alert("Failed to approve payment");
+      alert(error?.response?.data?.message || "Failed to approve payment");
     }
   };
 
   const rejectPayment = async (paymentId) => {
     const reason = prompt("Enter rejection reason:") || "Invalid payment proof";
     try {
-      await api.put(`/billing/payments/${paymentId}/reject`, {
+      const res = await api.put(`/billing/payments/${paymentId}/reject`, {
         admin_remark: reason,
       });
-      alert("Payment rejected successfully");
+      alert(res?.data?.message || "Payment rejected successfully");
       loadData();
     } catch (error) {
       console.error(error);
-      alert("Failed to reject payment");
+      alert(error?.response?.data?.message || "Failed to reject payment");
     }
   };
 
@@ -474,7 +472,7 @@ export default function Billing() {
                               onClick={() => handleRazorpayPayment(bill)}
                               disabled={razorpayLoadingId === bill.id}
                               className="billing-razorpay-btn"
-                              title="Pay instantly online — no admin approval needed"
+                              title="Pay online and send it for admin approval"
                             >
                               {razorpayLoadingId === bill.id
                                 ? "Opening..."
@@ -531,6 +529,12 @@ export default function Billing() {
                   <p>
                     <strong>Amount:</strong> ₹
                     {Number(payment.bill?.total_amount || 0).toFixed(2)}
+                  </p>
+                  <p>
+                    <strong>Mode:</strong> {payment.mode || "-"}
+                  </p>
+                  <p>
+                    <strong>Receipt No:</strong> {payment.receipt_no || "-"}
                   </p>
                   <p>
                     <strong>Note:</strong> {payment.note || "-"}
@@ -894,7 +898,6 @@ export default function Billing() {
         .billing-action-row {
           display: flex;
           gap: 10px;
-          marginTop: 12px;
           margin-top: 12px;
         }
 

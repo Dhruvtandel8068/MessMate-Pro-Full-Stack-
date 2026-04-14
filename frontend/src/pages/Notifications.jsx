@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   getData,
   postData,
-  putData,
+  patchData,
   deleteData,
 } from "../services/api";
 import { showError, showSuccess } from "../utils/toast";
@@ -24,7 +24,7 @@ export default function Notifications() {
   const [form, setForm] = useState({
     title: "",
     message: "",
-    target_type: "all",
+    target_type: "all_users",
     user_id: "",
     action_url: "",
     notification_type: "general",
@@ -40,7 +40,7 @@ export default function Notifications() {
 
       const [notificationRes, usersRes] = await Promise.all([
         getData("/notifications/"),
-        isAdmin ? getData("/users") : Promise.resolve([]),
+        isAdmin ? getData("/notifications/users-list") : Promise.resolve([]),
       ]);
 
       setNotifications(Array.isArray(notificationRes) ? notificationRes : []);
@@ -61,7 +61,7 @@ export default function Notifications() {
       return;
     }
 
-    if (form.target_type === "single" && !form.user_id) {
+    if (form.target_type === "single_user" && !form.user_id) {
       showError("Please select a user");
       return;
     }
@@ -77,7 +77,7 @@ export default function Notifications() {
         notification_type: form.notification_type,
       };
 
-      if (form.target_type === "single") {
+      if (form.target_type === "single_user") {
         payload.user_id = Number(form.user_id);
       }
 
@@ -87,7 +87,7 @@ export default function Notifications() {
       setForm({
         title: "",
         message: "",
-        target_type: "all",
+        target_type: "all_users",
         user_id: "",
         action_url: "",
         notification_type: "general",
@@ -103,12 +103,24 @@ export default function Notifications() {
 
   const markAsRead = async (id) => {
     try {
-      await putData(`/notifications/${id}/read`, {});
+      await patchData(`/notifications/${id}/read`);
+      setNotifications((prev) => prev.filter((item) => item.id !== id));
       showSuccess("Notification marked as read");
-      await loadData();
     } catch (error) {
       console.error("Failed to mark as read", error);
       showError(error?.response?.data?.message || "Failed to mark notification as read");
+    }
+  };
+
+  const markAllAsRead = async () => {
+    try {
+      await patchData("/notifications/read-all");
+      setNotifications((prev) => prev.filter((item) => item.is_read));
+      showSuccess("All notifications marked as read");
+      await loadData();
+    } catch (error) {
+      console.error("Failed to mark all as read", error);
+      showError(error?.response?.data?.message || "Failed to mark all notifications as read");
     }
   };
 
@@ -118,8 +130,8 @@ export default function Notifications() {
 
     try {
       await deleteData(`/notifications/${id}`);
+      setNotifications((prev) => prev.filter((item) => item.id !== id));
       showSuccess("Notification deleted successfully");
-      await loadData();
     } catch (error) {
       console.error("Failed to delete notification", error);
       showError(error?.response?.data?.message || "Failed to delete notification");
@@ -128,16 +140,22 @@ export default function Notifications() {
 
   const filteredNotifications = useMemo(() => {
     return notifications.filter((item) => {
+      if (item.is_read) return false;
+
+      const targetValue = item.user_id
+        ? "single_user"
+        : item.role_target === "admin"
+        ? "admin_only"
+        : "all_users";
+
       const text =
-        `${item.title || ""} ${item.message || ""} ${item.target_type || ""} ${item.notification_type || ""}`
+        `${item.title || ""} ${item.message || ""} ${targetValue || ""} ${item.notification_type || ""}`
           .toLowerCase();
 
       const matchesSearch = text.includes(search.toLowerCase());
 
       const matchesTarget =
-        targetFilter === "all"
-          ? true
-          : String(item.target_type || "").toLowerCase() === targetFilter.toLowerCase();
+        targetFilter === "all" ? true : targetValue === targetFilter;
 
       return matchesSearch && matchesTarget;
     });
@@ -192,30 +210,27 @@ export default function Notifications() {
                   setForm({
                     ...form,
                     target_type: e.target.value,
-                    user_id: e.target.value === "single" ? form.user_id : "",
+                    user_id: e.target.value === "single_user" ? form.user_id : "",
                   })
                 }
               >
-                <option value="all">All Users</option>
-                <option value="admin">Admin Only</option>
-                <option value="user">Users Only</option>
-                <option value="single">Single User</option>
+                <option value="all_users">All Users</option>
+                <option value="admin_only">Admin Only</option>
+                <option value="single_user">Single User</option>
               </select>
 
-              {form.target_type === "single" ? (
+              {form.target_type === "single_user" ? (
                 <select
                   className="select"
                   value={form.user_id}
                   onChange={(e) => setForm({ ...form, user_id: e.target.value })}
                 >
                   <option value="">Select user</option>
-                  {users
-                    .filter((u) => u.role === "user")
-                    .map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.full_name} ({u.email})
-                      </option>
-                    ))}
+                  {users.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.full_name} ({u.email})
+                    </option>
+                  ))}
                 </select>
               ) : (
                 <select
@@ -280,6 +295,18 @@ export default function Notifications() {
               <div className="stat-value">{readCount}</div>
             </div>
           </div>
+
+          {unreadCount > 0 && (
+            <div className="button-group">
+              <button
+                className="button button-secondary"
+                type="button"
+                onClick={markAllAsRead}
+              >
+                Mark All Read
+              </button>
+            </div>
+          )}
         </section>
       </section>
 
@@ -299,9 +326,9 @@ export default function Notifications() {
             style={{ maxWidth: 220 }}
           >
             <option value="all">All Targets</option>
-            <option value="admin">Admin</option>
-            <option value="user">User</option>
-            <option value="single">Single User</option>
+            <option value="all_users">All Users</option>
+            <option value="admin_only">Admin Only</option>
+            <option value="single_user">Single User</option>
           </select>
         </div>
       </section>
@@ -312,41 +339,46 @@ export default function Notifications() {
         {loading ? (
           <div className="empty-state">Loading notifications...</div>
         ) : !filteredNotifications.length ? (
-          <div className="empty-state">No notifications found.</div>
+          <div className="empty-state">No unread notifications found.</div>
         ) : (
           <div className="list-stack">
-            {filteredNotifications.map((item) => (
-              <div
-                key={item.id}
-                className="list-item"
-                style={{
-                  alignItems: "flex-start",
-                  justifyContent: "space-between",
-                  gap: 16,
-                }}
-              >
-                <div style={{ flex: 1 }}>
-                  <strong style={{ display: "block", marginBottom: 8 }}>
-                    {item.title}
-                  </strong>
+            {filteredNotifications.map((item) => {
+              const displayTarget = item.user_id
+                ? "single_user"
+                : item.role_target === "admin"
+                ? "admin_only"
+                : "all_users";
 
-                  <div className="muted" style={{ marginBottom: 8 }}>
-                    {item.message}
-                  </div>
+              return (
+                <div
+                  key={item.id}
+                  className="list-item"
+                  style={{
+                    alignItems: "flex-start",
+                    justifyContent: "space-between",
+                    gap: 16,
+                  }}
+                >
+                  <div style={{ flex: 1 }}>
+                    <strong style={{ display: "block", marginBottom: 8 }}>
+                      {item.title}
+                    </strong>
 
-                  {/* Main date change here */}
-                  <div className="muted" style={{ marginBottom: 6 }}>
-                    {formatDateTime(item.created_at)}
-                  </div>
-
-                  {item.action_url && (
-                    <div className="muted" style={{ marginBottom: 10 }}>
-                      Action: {item.action_url}
+                    <div className="muted" style={{ marginBottom: 8 }}>
+                      {item.message}
                     </div>
-                  )}
 
-                  <div className="button-group">
-                    {!item.is_read && (
+                    <div className="muted" style={{ marginBottom: 6 }}>
+                      {formatDateTime(item.created_at)}
+                    </div>
+
+                    {item.action_url && (
+                      <div className="muted" style={{ marginBottom: 10 }}>
+                        Action: {item.action_url}
+                      </div>
+                    )}
+
+                    <div className="button-group">
                       <button
                         className="button button-secondary"
                         type="button"
@@ -354,45 +386,41 @@ export default function Notifications() {
                       >
                         Mark Read
                       </button>
-                    )}
 
-                    <button
-                      className="button button-danger"
-                      type="button"
-                      onClick={() => removeNotification(item.id)}
-                    >
-                      Delete
-                    </button>
+                      <button
+                        className="button button-danger"
+                        type="button"
+                        onClick={() => removeNotification(item.id)}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 10,
+                      alignItems: "flex-end",
+                      minWidth: 140,
+                    }}
+                  >
+                    <span className="badge badge-info">
+                      {displayTarget}
+                    </span>
+
+                    <span className="badge badge-warning">
+                      Unread
+                    </span>
+
+                    <span className="badge badge-info">
+                      {item.notification_type || "general"}
+                    </span>
                   </div>
                 </div>
-
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: 10,
-                    alignItems: "flex-end",
-                    minWidth: 120,
-                  }}
-                >
-                  <span className="badge badge-info">
-                    {item.target_type || "user"}
-                  </span>
-
-                  <span
-                    className={`badge ${
-                      item.is_read ? "badge-success" : "badge-warning"
-                    }`}
-                  >
-                    {item.is_read ? "Read" : "Unread"}
-                  </span>
-
-                  <span className="badge badge-info">
-                    {item.notification_type || "general"}
-                  </span>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </section>

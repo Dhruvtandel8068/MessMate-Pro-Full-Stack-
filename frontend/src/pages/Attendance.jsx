@@ -42,6 +42,15 @@ export default function Attendance() {
     }
   }, [form.user_ids, form.date, isAdmin]);
 
+  useEffect(() => {
+    setForm((prev) => ({
+      ...prev,
+      breakfast: false,
+      lunch: false,
+      dinner: false,
+    }));
+  }, [form.user_ids, form.date]);
+
   const loadData = async () => {
     try {
       setLoading(true);
@@ -110,6 +119,9 @@ export default function Attendance() {
     setForm((prev) => ({
       ...prev,
       user_ids: [],
+      breakfast: false,
+      lunch: false,
+      dinner: false,
     }));
     setExistingAttendance([]);
   };
@@ -135,6 +147,41 @@ export default function Attendance() {
     );
   };
 
+  const isMealAlreadyMarkedForAllSelected = (mealType) => {
+    if (!form.user_ids.length) return false;
+
+    return form.user_ids.every((userId) => {
+      const status = getUserAttendanceStatus(userId);
+      return Boolean(status?.[mealType]);
+    });
+  };
+
+  const isMealMarkedForSomeSelected = (mealType) => {
+    if (!form.user_ids.length) return false;
+
+    return form.user_ids.some((userId) => {
+      const status = getUserAttendanceStatus(userId);
+      return Boolean(status?.[mealType]);
+    });
+  };
+
+  const isMealOpen = (mealType) => {
+    if (!cutoffs) return true;
+    return cutoffs[`${mealType}_open`] !== false;
+  };
+
+  const breakfastLocked = isMealAlreadyMarkedForAllSelected("breakfast");
+  const lunchLocked = isMealAlreadyMarkedForAllSelected("lunch");
+  const dinnerLocked = isMealAlreadyMarkedForAllSelected("dinner");
+
+  const breakfastPartial = !breakfastLocked && isMealMarkedForSomeSelected("breakfast");
+  const lunchPartial = !lunchLocked && isMealMarkedForSomeSelected("lunch");
+  const dinnerPartial = !dinnerLocked && isMealMarkedForSomeSelected("dinner");
+
+  const breakfastClosed = !isMealOpen("breakfast");
+  const lunchClosed = !isMealOpen("lunch");
+  const dinnerClosed = !isMealOpen("dinner");
+
   const saveAttendance = async (e) => {
     e.preventDefault();
 
@@ -148,8 +195,10 @@ export default function Attendance() {
       return;
     }
 
-    if (!form.breakfast && !form.lunch && !form.dinner) {
-      alert("Please select at least one meal");
+    const hasAnyNewMealSelected = form.breakfast || form.lunch || form.dinner;
+
+    if (!hasAnyNewMealSelected) {
+      alert("Please select at least one new meal");
       return;
     }
 
@@ -370,33 +419,60 @@ export default function Attendance() {
             )}
 
             <div className="checkbox-row">
-              <label className="checkbox-card">
+              <label
+                className="checkbox-card"
+                style={{
+                  opacity: breakfastLocked || breakfastClosed ? 0.65 : 1,
+                  cursor: breakfastLocked || breakfastClosed ? "not-allowed" : "pointer",
+                }}
+              >
                 <input
                   type="checkbox"
-                  checked={form.breakfast}
+                  checked={breakfastLocked ? true : form.breakfast}
+                  disabled={breakfastLocked || breakfastClosed}
                   onChange={(e) => setForm({ ...form, breakfast: e.target.checked })}
                 />
                 Breakfast
               </label>
 
-              <label className="checkbox-card">
+              <label
+                className="checkbox-card"
+                style={{
+                  opacity: lunchLocked || lunchClosed ? 0.65 : 1,
+                  cursor: lunchLocked || lunchClosed ? "not-allowed" : "pointer",
+                }}
+              >
                 <input
                   type="checkbox"
-                  checked={form.lunch}
+                  checked={lunchLocked ? true : form.lunch}
+                  disabled={lunchLocked || lunchClosed}
                   onChange={(e) => setForm({ ...form, lunch: e.target.checked })}
                 />
                 Lunch
               </label>
 
-              <label className="checkbox-card">
+              <label
+                className="checkbox-card"
+                style={{
+                  opacity: dinnerLocked || dinnerClosed ? 0.65 : 1,
+                  cursor: dinnerLocked || dinnerClosed ? "not-allowed" : "pointer",
+                }}
+              >
                 <input
                   type="checkbox"
-                  checked={form.dinner}
+                  checked={dinnerLocked ? true : form.dinner}
+                  disabled={dinnerLocked || dinnerClosed}
                   onChange={(e) => setForm({ ...form, dinner: e.target.checked })}
                 />
                 Dinner
               </label>
             </div>
+
+            {(breakfastPartial || lunchPartial || dinnerPartial) && (
+              <div className="empty-state" style={{ textAlign: "left", padding: "10px 0 0 0" }}>
+                Some selected users already have attendance marked for one or more meals.
+              </div>
+            )}
 
             <button className="button button-primary" type="submit">
               Save Attendance
