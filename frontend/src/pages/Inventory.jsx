@@ -1,16 +1,28 @@
 import { useEffect, useMemo, useState } from "react";
 import { getData, postData, putData, deleteData } from "../services/api";
 
+const CATEGORY_UNIT_MAP = {
+  Groceries: "Nos",
+  Vegetables: "Kgs",
+  Dairy: "Litres",
+  Cleaning: "Nos",
+  Gas: "Cylinder",
+  Utensils: "Nos",
+  Other: "Nos",
+};
+
 export default function Inventory() {
   const [items, setItems] = useState([]);
   const [editingId, setEditingId] = useState(null);
   const [search, setSearch] = useState("");
   const [stockFilter, setStockFilter] = useState("all");
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const [form, setForm] = useState({
     category: "Groceries",
     name: "",
+    unit: CATEGORY_UNIT_MAP["Groceries"],
     qty: "",
     low_limit: 5,
   });
@@ -23,9 +35,10 @@ export default function Inventory() {
     try {
       setLoading(true);
       const res = await getData("/inventory/");
-      setItems(res || []);
+      setItems(Array.isArray(res) ? res : []);
     } catch (error) {
       console.error("Failed to load inventory", error);
+      alert(error?.response?.data?.message || "Failed to load inventory");
     } finally {
       setLoading(false);
     }
@@ -36,32 +49,80 @@ export default function Inventory() {
     setForm({
       category: "Groceries",
       name: "",
+      unit: CATEGORY_UNIT_MAP["Groceries"],
       qty: "",
       low_limit: 5,
     });
   };
 
+  const handleCategoryChange = (e) => {
+    const category = e.target.value;
+    setForm((prev) => ({
+      ...prev,
+      category,
+      unit: CATEGORY_UNIT_MAP[category] || "Nos",
+    }));
+  };
+
+  const validateForm = () => {
+    const name = form.name.trim();
+    const qty = Number(form.qty);
+    const lowLimit = Number(form.low_limit);
+
+    if (!form.category) {
+      alert("Please select category");
+      return false;
+    }
+
+    if (!name) {
+      alert("Please enter item name");
+      return false;
+    }
+
+    if (Number.isNaN(qty) || qty <= 0) {
+      alert("Please enter valid quantity");
+      return false;
+    }
+
+    if (Number.isNaN(lowLimit) || lowLimit < 0) {
+      alert("Please enter valid low stock limit");
+      return false;
+    }
+
+    return true;
+  };
+
   const submitItem = async (e) => {
     e.preventDefault();
 
+    if (!validateForm()) return;
+
     try {
+      setSaving(true);
+
       const payload = {
-        ...form,
+        category: form.category,
+        name: form.name.trim(),
+        unit: form.unit,
         qty: Number(form.qty),
         low_limit: Number(form.low_limit),
       };
 
       if (editingId) {
         await putData(`/inventory/${editingId}`, payload);
+        alert("Inventory item updated successfully");
       } else {
         await postData("/inventory/", payload);
+        alert("Inventory item added successfully");
       }
 
       resetForm();
-      loadItems();
+      await loadItems();
     } catch (error) {
       console.error("Failed to save inventory item", error);
       alert(error?.response?.data?.message || "Failed to save inventory item");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -70,6 +131,7 @@ export default function Inventory() {
     setForm({
       category: item.category || "Groceries",
       name: item.name || "",
+      unit: item.unit || CATEGORY_UNIT_MAP[item.category] || "Nos",
       qty: item.qty ?? "",
       low_limit: item.low_limit ?? 5,
     });
@@ -82,7 +144,7 @@ export default function Inventory() {
 
     try {
       await deleteData(`/inventory/${id}`);
-      loadItems();
+      await loadItems();
     } catch (error) {
       console.error("Failed to delete inventory item", error);
       alert(error?.response?.data?.message || "Failed to delete inventory item");
@@ -91,7 +153,7 @@ export default function Inventory() {
 
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
-      const matchesSearch = `${item.category} ${item.name} ${item.qty} ${item.low_limit}`
+      const matchesSearch = `${item.category} ${item.name} ${item.qty} ${item.low_limit} ${item.unit || ""}`
         .toLowerCase()
         .includes(search.toLowerCase());
 
@@ -115,6 +177,9 @@ export default function Inventory() {
   const healthyStockCount = items.filter(
     (item) => Number(item.qty) > Number(item.low_limit)
   ).length;
+
+  const getQtyPlaceholder = () => `Quantity (${form.unit})`;
+  const getLowLimitPlaceholder = () => `Low stock limit (${form.unit})`;
 
   return (
     <div className="page-grid">
@@ -146,7 +211,7 @@ export default function Inventory() {
             <select
               className="select"
               value={form.category}
-              onChange={(e) => setForm({ ...form, category: e.target.value })}
+              onChange={handleCategoryChange}
             >
               <option value="Groceries">Groceries</option>
               <option value="Vegetables">Vegetables</option>
@@ -170,31 +235,42 @@ export default function Inventory() {
             <input
               className="input"
               type="number"
-              placeholder="Quantity"
+              placeholder={getQtyPlaceholder()}
               value={form.qty}
               onChange={(e) => setForm({ ...form, qty: e.target.value })}
               required
+              min="0"
+              step="0.01"
             />
 
             <input
               className="input"
               type="number"
-              placeholder="Low stock limit"
+              placeholder={getLowLimitPlaceholder()}
               value={form.low_limit}
               onChange={(e) => setForm({ ...form, low_limit: e.target.value })}
               required
+              min="0"
+              step="0.01"
             />
           </div>
 
           <div className="button-group">
-            <button className="button button-primary" type="submit">
-              {editingId ? "Update Item" : "Add Item"}
+            <button className="button button-primary" type="submit" disabled={saving}>
+              {saving
+                ? editingId
+                  ? "Updating..."
+                  : "Adding..."
+                : editingId
+                ? "Update Item"
+                : "Add Item"}
             </button>
 
             <button
               className="button button-secondary"
               type="button"
               onClick={resetForm}
+              disabled={saving}
             >
               Reset
             </button>
@@ -259,6 +335,7 @@ export default function Inventory() {
                 <th>Item Name</th>
                 <th>Quantity</th>
                 <th>Low Limit</th>
+                <th>Unit</th>
                 <th>Status</th>
                 <th>Action</th>
               </tr>
@@ -267,7 +344,7 @@ export default function Inventory() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan="6">
+                  <td colSpan="7">
                     <div className="empty-state">Loading inventory...</div>
                   </td>
                 </tr>
@@ -281,8 +358,13 @@ export default function Inventory() {
                         <strong>{item.category}</strong>
                       </td>
                       <td>{item.name}</td>
-                      <td>{item.qty}</td>
-                      <td>{item.low_limit}</td>
+                      <td>
+                        {item.qty} {item.unit || ""}
+                      </td>
+                      <td>
+                        {item.low_limit} {item.unit || ""}
+                      </td>
+                      <td>{item.unit || "-"}</td>
                       <td>
                         <span
                           className={`badge ${
@@ -316,7 +398,7 @@ export default function Inventory() {
                 })
               ) : (
                 <tr>
-                  <td colSpan="6">
+                  <td colSpan="7">
                     <div className="empty-state">No inventory items found.</div>
                   </td>
                 </tr>

@@ -28,6 +28,7 @@ def create_inventory():
     row = Inventory(
         category=(data.get("category") or "General").strip(),
         name=(data.get("name") or "").strip(),
+        unit=(data.get("unit") or "Nos").strip(),
         qty=float(data.get("qty") or 0),
         low_limit=float(data.get("low_limit") or 5),
     )
@@ -47,10 +48,15 @@ def update_inventory(item_id):
 
     row = Inventory.query.get_or_404(item_id)
     data = request.get_json() or {}
+
     row.category = (data.get("category") or row.category).strip()
     row.name = (data.get("name") or row.name).strip()
+    row.unit = (data.get("unit") or row.unit).strip()
     row.qty = float(data.get("qty") if data.get("qty") is not None else row.qty)
-    row.low_limit = float(data.get("low_limit") if data.get("low_limit") is not None else row.low_limit)
+    row.low_limit = float(
+        data.get("low_limit") if data.get("low_limit") is not None else row.low_limit
+    )
+
     db.session.commit()
     return jsonify({"message": "Inventory item updated", "item": row.to_dict()})
 

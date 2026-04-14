@@ -1,15 +1,15 @@
-import csv
-import io
 from datetime import datetime
+from io import BytesIO
 
-from flask import Blueprint, request, jsonify, Response
+import pandas as pd
+from flask import Blueprint, request, jsonify, send_file
 from flask_jwt_extended import jwt_required, get_jwt
 from sqlalchemy import extract
 
 from app.models.expense import Expense, ExpenseCategory
 from app.models.notification import Notification
 from app.utils.db import db
-from app.helpers.notifications import create_notification
+
 expense_bp = Blueprint("expense_bp", __name__)
 
 
@@ -18,7 +18,14 @@ def is_admin():
     return claims.get("role") == "admin"
 
 
-def create_notification(title, message, user_id=None, role_target=None, notification_type="general", action_url=None):
+def create_notification(
+    title,
+    message,
+    user_id=None,
+    role_target=None,
+    notification_type="general",
+    action_url=None,
+):
     row = Notification(
         user_id=user_id,
         title=title,
@@ -59,11 +66,11 @@ def get_expenses():
     query = Expense.query
 
     if month:
-        query = query.filter(extract("month", Expense.expense_date) == int(month))
+      query = query.filter(extract("month", Expense.expense_date) == int(month))
     if year:
-        query = query.filter(extract("year", Expense.expense_date) == int(year))
+      query = query.filter(extract("year", Expense.expense_date) == int(year))
     if category_id:
-        query = query.filter(Expense.category_id == int(category_id))
+      query = query.filter(Expense.category_id == int(category_id))
 
     expenses = query.order_by(Expense.expense_date.desc(), Expense.id.desc()).all()
     return jsonify([expense_to_dict(e) for e in expenses]), 200
@@ -78,7 +85,7 @@ def get_expense_summary():
     query = db.session.query(
         ExpenseCategory.name.label("category_name"),
         db.func.sum(Expense.amount).label("total_amount"),
-        db.func.count(Expense.id).label("count_items")
+        db.func.count(Expense.id).label("count_items"),
     ).join(ExpenseCategory, Expense.category_id == ExpenseCategory.id)
 
     if month:
@@ -95,17 +102,19 @@ def get_expense_summary():
         grand_total = grand_total.filter(extract("year", Expense.expense_date) == int(year))
     grand_total = float(grand_total.scalar() or 0)
 
-    return jsonify({
-        "grand_total": grand_total,
-        "categories": [
-            {
-                "category_name": row.category_name,
-                "total_amount": float(row.total_amount or 0),
-                "count_items": int(row.count_items or 0),
-            }
-            for row in rows
-        ]
-    }), 200
+    return jsonify(
+        {
+            "grand_total": grand_total,
+            "categories": [
+                {
+                    "category_name": row.category_name,
+                    "total_amount": float(row.total_amount or 0),
+                    "count_items": int(row.count_items or 0),
+                }
+                for row in rows
+            ],
+        }
+    ), 200
 
 
 @expense_bp.route("/", methods=["POST"])
@@ -123,7 +132,9 @@ def create_expense():
         expense_date = data.get("expense_date")
 
         if not title or not category_id or amount is None or not expense_date:
-            return jsonify({"message": "title, category_id, amount and expense_date are required"}), 400
+            return jsonify(
+                {"message": "title, category_id, amount and expense_date are required"}
+            ), 400
 
         expense = Expense(
             title=title,
@@ -143,7 +154,9 @@ def create_expense():
         )
 
         db.session.commit()
-        return jsonify({"message": "Expense added successfully", "expense": expense_to_dict(expense)}), 201
+        return jsonify(
+            {"message": "Expense added successfully", "expense": expense_to_dict(expense)}
+        ), 201
 
     except Exception as e:
         db.session.rollback()
@@ -165,10 +178,14 @@ def update_expense(expense_id):
         expense.category_id = int(data.get("category_id") or expense.category_id)
         expense.amount = float(data.get("amount") or expense.amount)
         if data.get("expense_date"):
-            expense.expense_date = datetime.strptime(data.get("expense_date"), "%Y-%m-%d").date()
+            expense.expense_date = datetime.strptime(
+                data.get("expense_date"), "%Y-%m-%d"
+            ).date()
 
         db.session.commit()
-        return jsonify({"message": "Expense updated successfully", "expense": expense_to_dict(expense)}), 200
+        return jsonify(
+            {"message": "Expense updated successfully", "expense": expense_to_dict(expense)}
+        ), 200
 
     except Exception as e:
         db.session.rollback()
@@ -197,35 +214,65 @@ def delete_expense(expense_id):
 @expense_bp.route("/export", methods=["GET"])
 @jwt_required()
 def export_expenses():
-    month = request.args.get("month")
-    year = request.args.get("year")
+    try:
+        month = request.args.get("month")
+        year = request.args.get("year")
+        category_id = request.args.get("category_id")
 
-    query = Expense.query
-    if month:
-        query = query.filter(extract("month", Expense.expense_date) == int(month))
-    if year:
-        query = query.filter(extract("year", Expense.expense_date) == int(year))
+        query = Expense.query.join(ExpenseCategory, Expense.category_id == ExpenseCategory.id)
 
-    expenses = query.order_by(Expense.expense_date.desc()).all()
+        if month:
+            query = query.filter(extract("month", Expense.expense_date) == int(month))
+        if year:
+            query = query.filter(extract("year", Expense.expense_date) == int(year))
+        if category_id and category_id != "all":
+            query = query.filter(Expense.category_id == int(category_id))
 
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow(["Title", "Category", "Amount", "Expense Date"])
+        expenses = query.order_by(Expense.expense_date.desc(), Expense.id.desc()).all()
 
-    for e in expenses:
-        writer.writerow([
-            e.title,
-            e.category.name if e.category else "-",
-            float(e.amount),
-            str(e.expense_date),
-        ])
+        rows = []
+        for e in expenses:
+            rows.append(
+                {
+                    "Title": e.title,
+                    "Category": e.category.name if e.category else "-",
+                    "Amount": float(e.amount),
+                    "Expense Date": e.expense_date.strftime("%d/%m/%Y")
+                    if e.expense_date
+                    else "",
+                }
+            )
 
-    csv_data = output.getvalue()
-    output.close()
+        df = pd.DataFrame(rows, columns=["Title", "Category", "Amount", "Expense Date"])
 
-    file_name = f"expenses_{month or 'all'}_{year or 'all'}.csv"
-    return Response(
-        csv_data,
-        mimetype="text/csv",
-        headers={"Content-Disposition": f"attachment; filename={file_name}"}
-    )
+        output = BytesIO()
+
+        with pd.ExcelWriter(output, engine="openpyxl") as writer:
+            df.to_excel(writer, index=False, sheet_name="Expenses")
+
+            worksheet = writer.sheets["Expenses"]
+
+            # Auto-size columns
+            for column_cells in worksheet.columns:
+                max_length = 0
+                column_letter = column_cells[0].column_letter
+                for cell in column_cells:
+                    cell_value = "" if cell.value is None else str(cell.value)
+                    if len(cell_value) > max_length:
+                        max_length = len(cell_value)
+                worksheet.column_dimensions[column_letter].width = max_length + 4
+
+        output.seek(0)
+
+        file_name = f"expense_report_{month or 'all'}_{year or 'all'}.xlsx"
+
+        return send_file(
+            output,
+            as_attachment=True,
+            download_name=file_name,
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+
+    except Exception as e:
+        print("EXPENSE EXPORT ERROR:", e)
+        return jsonify({"message": str(e)}), 500

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import {
+import api, {
   deleteData,
   getData,
   postData,
@@ -30,6 +30,7 @@ export default function Expenses() {
   const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -134,12 +135,47 @@ export default function Expenses() {
     }
   };
 
-  const exportExpenses = () => {
-    const query = buildQuery();
-    window.open(
-      `http://127.0.0.1:5000/api/expenses/export${query ? `?${query}` : ""}`,
-      "_blank"
-    );
+  const exportExpenses = async () => {
+    try {
+      setExporting(true);
+
+      const query = buildQuery();
+      const response = await api.get(
+        `/expenses/export${query ? `?${query}` : ""}`,
+        {
+          responseType: "blob",
+        }
+      );
+
+      const blob = new Blob([
+        response.data,
+      ], {
+        type:
+          response.headers["content-type"] ||
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+
+      const url = window.URL.createObjectURL(blob);
+
+      const monthLabel = monthFilter || "all";
+      const yearLabel = yearFilter || "all";
+      const filename = `expense_report_${monthLabel}_${yearLabel}.xlsx`;
+
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+
+      window.URL.revokeObjectURL(url);
+      showSuccess("Expense report exported successfully");
+    } catch (error) {
+      console.error("Failed to export expenses", error);
+      showError(error?.response?.data?.message || "Failed to export expense report");
+    } finally {
+      setExporting(false);
+    }
   };
 
   const filteredExpenses = useMemo(() => {
@@ -151,6 +187,14 @@ export default function Expenses() {
       return matchesSearch;
     });
   }, [expenses, search]);
+
+  const uniqueCategories = useMemo(() => {
+    return [
+      ...new Map(
+        (categories || []).map((c) => [c.name.trim().toLowerCase(), c])
+      ).values(),
+    ];
+  }, [categories]);
 
   const total = filteredExpenses.reduce(
     (sum, item) => sum + Number(item.amount || 0),
@@ -205,7 +249,7 @@ export default function Expenses() {
                   }
                 >
                   <option value="">Select category</option>
-                  {categories.map((c) => (
+                  {uniqueCategories.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.name}
                     </option>
@@ -316,7 +360,7 @@ export default function Expenses() {
             style={{ maxWidth: 180 }}
           >
             <option value="all">All Categories</option>
-            {categories.map((c) => (
+            {uniqueCategories.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
               </option>
@@ -327,8 +371,9 @@ export default function Expenses() {
             className="button button-secondary"
             type="button"
             onClick={exportExpenses}
+            disabled={exporting}
           >
-            Export Expense Report
+            {exporting ? "Exporting..." : "Export Expense Report"}
           </button>
         </div>
       </section>
