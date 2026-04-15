@@ -1,4 +1,5 @@
 import { NavLink } from "react-router-dom";
+import logo from "../assets/logo.png"; // ✅ ADD THIS
 
 export default function Sidebar() {
   const user = JSON.parse(localStorage.getItem("user") || "{}");
@@ -7,11 +8,23 @@ export default function Sidebar() {
   return (
     <header className="top-navbar">
       <div className="top-navbar-inner">
-        <div className="top-navbar-brand">
-          <h1>MessMate Pro</h1>
-          <p>{isAdmin ? "Admin Control Panel" : "User Panel"}</p>
+
+       <div className="top-navbar-brand">
+          <div className="logo-container">
+
+            {/* TEXT FIRST */}
+            <div className="logo-text">
+              <h1>MessMate Pro</h1>
+              <p>{isAdmin ? "Admin Control Panel" : "User Panel"}</p>
         </div>
 
+        {/* LOGO RIGHT SIDE */}
+        <img src={logo} alt="Logo" className="logo-img" />
+
+      </div>
+    </div>
+
+        {/* NAV LINKS */}
         <nav className="top-navbar-links">
           <NavLink to="/dashboard" className="top-nav-link">
             Dashboard
@@ -25,7 +38,6 @@ export default function Sidebar() {
             Attendance
           </NavLink>
 
-          {/* ← NEW: visible to both students and admin */}
           <NavLink to="/leave" className="top-nav-link">
             Leave
           </NavLink>

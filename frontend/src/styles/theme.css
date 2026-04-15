@@ -1337,3 +1337,26 @@ body.dark-mode .profile-dropdown-item:hover {
   gap: 22px;
   align-items: start;
 }
+.logo-container {
+  display: flex;
+  align-items: center;
+  gap: 40px; /* 🔥 increased space (moves logo more right) */
+}
+
+.logo-img {
+  width: 200px;   /* 🔥 bigger logo */
+  height: 80px;
+  object-fit: contain;
+}
+
+.logo-text h1 {
+  font-size: 40px;
+  margin: 0;
+  font-weight: 700;
+}
+
+.logo-text p {
+  font-size: 12px;
+  margin: 0;
+  color: #888;
+}

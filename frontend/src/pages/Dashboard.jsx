@@ -28,6 +28,18 @@ ChartJS.register(
   Filler
 );
 
+// Modern trending colors
+const MODERN_COLORS = [
+  "#6366F1", // Indigo
+  "#06B6D4", // Cyan
+  "#22C55E", // Green
+  "#F59E0B", // Amber
+  "#EF4444", // Red
+  "#8B5CF6", // Violet
+  "#EC4899", // Pink
+  "#14B8A6", // Teal
+];
+
 function buildChartData(items = [], label = "Value") {
   return {
     labels: items.map((item) => item.label),
@@ -35,7 +47,11 @@ function buildChartData(items = [], label = "Value") {
       {
         label,
         data: items.map((item) => Number(item.value || 0)),
+        backgroundColor: items.map(
+          (_, index) => MODERN_COLORS[index % MODERN_COLORS.length]
+        ),
         borderRadius: 12,
+        borderSkipped: false,
       },
     ],
   };
@@ -158,16 +174,27 @@ export default function Dashboard() {
   }, [summary, isAdmin]);
 
   const expenseBarData = buildChartData(expenseChart, "Expense by Category");
+
   const complaintDoughnutData = {
     labels: complaintChart.map((item) => item.label),
     datasets: [
       {
         data: complaintChart.map((item) => Number(item.value || 0)),
+        backgroundColor: [
+          "#22C55E", // Resolved
+          "#F59E0B", // Pending
+          "#EF4444", // Rejected
+          "#6366F1", // Extra status
+          "#06B6D4", // Extra status
+        ],
+        borderWidth: 0,
+        hoverOffset: 8,
       },
     ],
   };
 
   const billingBarData = buildChartData(billingChart, "Billing Status");
+
   const attendanceLineData = {
     labels: attendanceChart.map((item) => item.label),
     datasets: [
@@ -176,6 +203,13 @@ export default function Dashboard() {
         data: attendanceChart.map((item) => Number(item.value || 0)),
         fill: true,
         tension: 0.35,
+        borderColor: "#6366F1",
+        backgroundColor: "rgba(99, 102, 241, 0.18)",
+        pointBackgroundColor: "#6366F1",
+        pointBorderColor: "#ffffff",
+        pointBorderWidth: 2,
+        pointRadius: 4,
+        pointHoverRadius: 6,
       },
     ],
   };
@@ -208,19 +242,61 @@ export default function Dashboard() {
 
   const barOptions = {
     responsive: true,
+    maintainAspectRatio: false,
     plugins: {
       legend: {
         display: true,
         position: "top",
+        labels: {
+          color: "#334155",
+          font: {
+            size: 13,
+            weight: "600",
+          },
+        },
+      },
+    },
+    scales: {
+      x: {
+        ticks: {
+          color: "#64748b",
+          font: {
+            size: 12,
+            weight: "500",
+          },
+        },
+        grid: {
+          display: false,
+        },
+      },
+      y: {
+        ticks: {
+          color: "#64748b",
+          font: {
+            size: 12,
+          },
+        },
+        grid: {
+          color: "rgba(148, 163, 184, 0.18)",
+        },
       },
     },
   };
 
   const doughnutOptions = {
     responsive: true,
+    maintainAspectRatio: false,
     plugins: {
       legend: {
         position: "bottom",
+        labels: {
+          color: "#334155",
+          font: {
+            size: 13,
+            weight: "600",
+          },
+          padding: 16,
+        },
       },
     },
     cutout: "65%",
@@ -228,10 +304,36 @@ export default function Dashboard() {
 
   const lineOptions = {
     responsive: true,
+    maintainAspectRatio: false,
     plugins: {
       legend: {
         display: true,
         position: "top",
+        labels: {
+          color: "#334155",
+          font: {
+            size: 13,
+            weight: "600",
+          },
+        },
+      },
+    },
+    scales: {
+      x: {
+        ticks: {
+          color: "#64748b",
+        },
+        grid: {
+          display: false,
+        },
+      },
+      y: {
+        ticks: {
+          color: "#64748b",
+        },
+        grid: {
+          color: "rgba(148, 163, 184, 0.18)",
+        },
       },
     },
   };
@@ -282,11 +384,13 @@ export default function Dashboard() {
       <section className="content-two">
         {isAdmin && (
           <div className="glass-card">
-            <h3 className="section-title">Monthly Expense Bar Chart</h3>
+            <h3 className="section-title">Monthly Expense</h3>
             {loading ? (
               <div className="empty-state">Loading chart...</div>
             ) : expenseChart.length ? (
-              <Bar data={expenseBarData} options={barOptions} />
+              <div style={{ height: "340px" }}>
+                <Bar data={expenseBarData} options={barOptions} />
+              </div>
             ) : (
               <div className="empty-state">No expense chart data available.</div>
             )}
@@ -296,13 +400,15 @@ export default function Dashboard() {
         <div className="glass-card">
           <h3 className="section-title">
             {isAdmin
-              ? "Complaint Status Doughnut Chart"
+              ? "Complaint Status Doughnut"
               : "My Complaint Status"}
           </h3>
           {loading ? (
             <div className="empty-state">Loading chart...</div>
           ) : complaintChart.length ? (
-            <Doughnut data={complaintDoughnutData} options={doughnutOptions} />
+            <div style={{ height: "340px" }}>
+              <Doughnut data={complaintDoughnutData} options={doughnutOptions} />
+            </div>
           ) : (
             <div className="empty-state">No complaint chart data available.</div>
           )}
@@ -312,12 +418,14 @@ export default function Dashboard() {
       <section className="content-two">
         <div className="glass-card">
           <h3 className="section-title">
-            {isAdmin ? "Billing Status Chart" : "My Billing Status"}
+            {isAdmin ? "Billing Status" : "My Billing Status"}
           </h3>
           {loading ? (
             <div className="empty-state">Loading chart...</div>
           ) : billingChart.length ? (
-            <Bar data={billingBarData} options={barOptions} />
+            <div style={{ height: "340px" }}>
+              <Bar data={billingBarData} options={barOptions} />
+            </div>
           ) : (
             <div className="empty-state">No billing chart data available.</div>
           )}
@@ -330,7 +438,9 @@ export default function Dashboard() {
           {loading ? (
             <div className="empty-state">Loading chart...</div>
           ) : attendanceChart.length ? (
-            <Line data={attendanceLineData} options={lineOptions} />
+            <div style={{ height: "340px" }}>
+              <Line data={attendanceLineData} options={lineOptions} />
+            </div>
           ) : (
             <div className="empty-state">No attendance chart data available.</div>
           )}
