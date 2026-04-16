@@ -130,6 +130,18 @@ def create_app():
     app.register_blueprint(attendance_bp, url_prefix="/api")
     app.register_blueprint(leave_bp, url_prefix="/api/leave")
 
+    @app.get("/")
+    def home():
+        return {
+            "message": "MessMate Pro backend is running successfully"
+        }, 200
+
+    @app.get("/api")
+    def api_home():
+        return {
+            "message": "MessMate Pro API is running successfully"
+        }, 200
+
     @app.get("/api/uploads/<path:filename>")
     def uploaded_file(filename):
         return send_from_directory(app.config["UPLOAD_FOLDER"], filename)
