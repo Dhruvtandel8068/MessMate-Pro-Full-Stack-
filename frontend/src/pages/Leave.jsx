@@ -224,7 +224,7 @@ export default function Leave() {
 
   return (
     <div className="attendance-style-page">
-      <section className="attendance-style-section-header">
+      <section className="glass-card">
         <h2 className="attendance-style-title">Leave Management</h2>
         <p className="attendance-style-subtitle">
           {isAdmin
@@ -672,6 +672,7 @@ export default function Leave() {
             align-items: flex-start;
           }
         }
+          
       `}</style>
     </div>
   );

@@ -13,13 +13,9 @@ export default function Sidebar() {
           <div className="logo-container">
 
             {/* TEXT FIRST */}
-            <div className="logo-text">
-              <h1>MessMate Pro</h1>
-              <p>{isAdmin ? "Admin Control Panel" : "User Panel"}</p>
-        </div>
-
+            
         {/* LOGO RIGHT SIDE */}
-        
+        <img src={logo} alt="Logo" className="logo-img" />
 
       </div>
     </div>

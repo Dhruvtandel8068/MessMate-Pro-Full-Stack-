@@ -311,7 +311,7 @@ export default function Billing() {
 
   return (
     <div className="attendance-style-page">
-      <section className="attendance-style-section-header">
+      <section className="glass-card">
         <h2 className="attendance-style-title">Billing Management</h2>
         <p className="attendance-style-subtitle">
           Manage bills, download PDF statements, and review payments.

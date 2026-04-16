@@ -250,7 +250,7 @@ export default function Login() {
             <span>MessMate Pro</span>
           </div>
 
-          <h2 className="auth-title center-title">Get Started</h2>
+          <h2 className="auth-title center-title">Let's Get Start</h2>
           <p className="auth-subtitle">
             Sign in to continue managing your mess operations smoothly.
           </p>
