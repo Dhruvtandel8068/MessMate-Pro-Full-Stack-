@@ -58,6 +58,29 @@ def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
 
+    # Force production DB config from environment variables (Aiven MySQL)
+    mysql_host = os.getenv("MYSQL_HOST")
+    mysql_port = os.getenv("MYSQL_PORT", "3306")
+    mysql_user = os.getenv("MYSQL_USER")
+    mysql_password = os.getenv("MYSQL_PASSWORD")
+    mysql_db = os.getenv("MYSQL_DB")
+
+    if mysql_host and mysql_user and mysql_password and mysql_db:
+        app.config["SQLALCHEMY_DATABASE_URI"] = (
+            f"mysql+pymysql://{mysql_user}:"
+            f"{mysql_password}@"
+            f"{mysql_host}:"
+            f"{mysql_port}/"
+            f"{mysql_db}"
+        )
+
+        app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+            "pool_pre_ping": True,
+            "connect_args": {
+                "ssl": {}
+            }
+        }
+
     upload_folder = app.config.get("UPLOAD_FOLDER", "uploads")
     os.makedirs(upload_folder, exist_ok=True)
     app.config["UPLOAD_FOLDER"] = upload_folder
@@ -71,6 +94,7 @@ def create_app():
                     "http://127.0.0.1:5173",
                     "http://localhost:5174",
                     "http://127.0.0.1:5174",
+                    os.getenv("FRONTEND_URL", "").strip(),
                 ]
             }
         },
