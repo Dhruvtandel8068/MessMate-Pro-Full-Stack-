@@ -1,20 +1,10 @@
-# Env files
 .env
 backend/.env
 frontend/.env
-
-# Python
-__pycache__/
-*.pyc
 .venv/
 backend/.venv/
-
-# Node
 node_modules/
+__pycache__/
+*.pyc
 dist/
-
-# VS Code
 .vscode/
-
-# OS
-.DS_Store
