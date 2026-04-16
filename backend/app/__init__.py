@@ -25,18 +25,12 @@ def seed_admin_and_categories(app):
             )
             admin.set_password(admin_password)
             db.session.add(admin)
-            print("Admin user created successfully.")
+            print("✅ Admin user created successfully.")
         else:
-            updated = False
-
-            if existing.role != "admin":
-                existing.role = "admin"
-                updated = True
-
-            if updated:
-                print("Existing admin updated successfully.")
-            else:
-                print("Admin already exists.")
+            existing.role = "admin"
+            existing.must_change_password = False
+            existing.set_password(admin_password)
+            print("✅ Existing admin updated successfully.")
 
     default_categories = [
         "Vegetables",
@@ -85,17 +79,21 @@ def create_app():
     os.makedirs(upload_folder, exist_ok=True)
     app.config["UPLOAD_FOLDER"] = upload_folder
 
+    frontend_url = os.getenv("FRONTEND_URL", "").strip()
+    allowed_origins = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5174",
+    ]
+    if frontend_url:
+        allowed_origins.append(frontend_url)
+
     CORS(
         app,
         resources={
             r"/api/*": {
-                "origins": [
-                    "http://localhost:5173",
-                    "http://127.0.0.1:5173",
-                    "http://localhost:5174",
-                    "http://127.0.0.1:5174",
-                    os.getenv("FRONTEND_URL", "").strip(),
-                ]
+                "origins": allowed_origins
             }
         },
         supports_credentials=True,
