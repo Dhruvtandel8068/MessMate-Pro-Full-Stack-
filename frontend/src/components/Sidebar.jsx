@@ -19,7 +19,7 @@ export default function Sidebar() {
         </div>
 
         {/* LOGO RIGHT SIDE */}
-        <img src={logo} alt="Logo" className="logo-img" />
+        
 
       </div>
     </div>

@@ -13,3 +13,18 @@ export async function registerUser(data) {
   const response = await API.post("/register", data);
   return response.data;
 }
+
+export async function googleLogin(data) {
+  const response = await API.post("/google-login", data);
+  return response.data;
+}
+
+export async function sendPhoneOtp(data) {
+  const response = await API.post("/phone/send-otp", data);
+  return response.data;
+}
+
+export async function verifyPhoneOtp(data) {
+  const response = await API.post("/phone/verify-otp", data);
+  return response.data;
+}
