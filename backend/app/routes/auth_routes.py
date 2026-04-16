@@ -1,14 +1,16 @@
 import os
 import random
+import secrets
 from datetime import datetime, timedelta
 
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity, create_access_token
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token as google_id_token
+from twilio.rest import Client
 
 from app.models.user import User
-from app.utils.db import db
+from app.utils.db import db, bcrypt
 from app.utils.email_service import send_email
 
 auth_bp = Blueprint("auth_bp", __name__)
@@ -30,10 +32,31 @@ def normalize_phone(phone):
     return "".join(ch for ch in str(phone or "") if ch.isdigit())
 
 
+def format_indian_phone(phone):
+    digits = normalize_phone(phone)
+    if len(digits) == 10:
+        return f"+91{digits}"
+    if len(digits) == 12 and digits.startswith("91"):
+        return f"+{digits}"
+    return f"+{digits}" if digits else ""
+
+
 def otp_expired(user, ttl_minutes=5):
     if not user.phone_otp_expires_at:
         return True
     return datetime.utcnow() > (user.phone_otp_expires_at + timedelta(minutes=ttl_minutes))
+
+
+def get_twilio_verify_client():
+    account_sid = os.getenv("TWILIO_ACCOUNT_SID")
+    auth_token = os.getenv("TWILIO_AUTH_TOKEN")
+    service_sid = os.getenv("TWILIO_VERIFY_SERVICE_SID")
+
+    if not account_sid or not auth_token or not service_sid:
+        return None, None
+
+    client = Client(account_sid, auth_token)
+    return client, service_sid
 
 
 @auth_bp.post("/register")
@@ -166,12 +189,16 @@ def google_login():
         ).first()
 
         if not user:
+            random_password = secrets.token_hex(16)
+            hashed_password = bcrypt.generate_password_hash(random_password).decode("utf-8")
+
             user = User(
                 full_name=full_name,
                 email=email,
                 role="user",
                 auth_provider="google",
                 google_id=google_id,
+                password_hash=hashed_password,
                 must_change_password=False,
             )
             db.session.add(user)
@@ -203,13 +230,13 @@ def google_login():
 def send_phone_otp():
     try:
         data = request.get_json() or {}
-        phone = normalize_phone(data.get("phone"))
+        raw_phone = data.get("phone")
+        phone = normalize_phone(raw_phone)
+        formatted_phone = format_indian_phone(raw_phone)
         full_name = (data.get("full_name") or "Phone User").strip()
 
         if not phone or len(phone) < 10:
             return jsonify({"message": "Valid phone number is required"}), 400
-
-        otp = random.randint(100000, 999999)
 
         user = User.query.filter_by(contact=phone).first()
         if not user:
@@ -223,34 +250,37 @@ def send_phone_otp():
                 must_change_password=False,
             )
             db.session.add(user)
+            db.session.flush()
 
-        user.set_phone_otp(otp)
+        client, service_sid = get_twilio_verify_client()
+        if not client or not service_sid:
+            return jsonify({"message": "Twilio Verify is not configured properly"}), 500
+
+        verification = client.verify.v2.services(service_sid).verifications.create(
+            to=formatted_phone,
+            channel="sms"
+        )
+
         user.phone_otp_expires_at = datetime.utcnow()
         db.session.commit()
 
-        dev_mode = os.getenv("PHONE_OTP_DEV_MODE", "true").lower() == "true"
-
-        response = {
+        return jsonify({
             "message": "OTP sent successfully",
-            "dev_mode": dev_mode,
-        }
-
-        if dev_mode:
-            response["otp"] = str(otp)
-
-        return jsonify(response), 200
+            "status": verification.status
+        }), 200
 
     except Exception as e:
         db.session.rollback()
         print("SEND OTP ERROR:", str(e))
         return jsonify({"message": f"Failed to send OTP: {str(e)}"}), 500
 
-
 @auth_bp.post("/phone/verify-otp")
 def verify_phone_otp():
     try:
         data = request.get_json() or {}
-        phone = normalize_phone(data.get("phone"))
+        raw_phone = data.get("phone")
+        phone = normalize_phone(raw_phone)
+        formatted_phone = format_indian_phone(raw_phone)
         otp = str(data.get("otp") or "").strip()
         full_name = (data.get("full_name") or "Phone User").strip()
 
@@ -259,12 +289,18 @@ def verify_phone_otp():
 
         user = User.query.filter_by(contact=phone).first()
         if not user:
-            return jsonify({"message": "User not found for this phone number"}), 404
+            return jsonify({"message": "User not found"}), 404
 
-        if otp_expired(user):
-            return jsonify({"message": "OTP expired. Please request a new OTP"}), 400
+        client, service_sid = get_twilio_verify_client()
+        if not client or not service_sid:
+            return jsonify({"message": "Twilio Verify is not configured properly"}), 500
 
-        if not user.check_phone_otp(otp):
+        check = client.verify.v2.services(service_sid).verification_checks.create(
+            to=formatted_phone,
+            code=otp
+        )
+
+        if check.status != "approved":
             return jsonify({"message": "Invalid OTP"}), 401
 
         user.full_name = user.full_name or full_name
@@ -274,6 +310,7 @@ def verify_phone_otp():
         db.session.commit()
 
         token = build_token(user)
+
         return jsonify({
             "message": "Phone login successful",
             "token": token,
@@ -284,7 +321,6 @@ def verify_phone_otp():
         db.session.rollback()
         print("VERIFY OTP ERROR:", str(e))
         return jsonify({"message": f"Failed to verify OTP: {str(e)}"}), 500
-
 
 @auth_bp.route("/change-password", methods=["PUT"])
 @jwt_required()

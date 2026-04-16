@@ -1,27 +1,20 @@
-SECRET_KEY=mess-secret-key
-JWT_SECRET_KEY=mess-jwt-secret-key
+# Env files
+.env
+backend/.env
+frontend/.env
 
-MYSQL_USER=mess_user
-MYSQL_PASSWORD=mess123
-MYSQL_HOST=localhost
-MYSQL_PORT=3306
-MYSQL_DB=mess_db
+# Python
+__pycache__/
+*.pyc
+.venv/
+backend/.venv/
 
+# Node
+node_modules/
+dist/
 
-ADMIN_EMAIL=dhruvtandel8068@gmail.com
-ADMIN_PASSWORD=Dhruv@8068
+# VS Code
+.vscode/
 
-AUTO_BILL_ENABLED=true
-AUTO_BILL_RUN_HOUR=2
-AUTO_BILL_RUN_MINUTE=15
-AUTO_BILL_WINDOW_DAYS=5
-
-MAIL_SERVER=smtp.gmail.com
-MAIL_PORT=587
-MAIL_USE_TLS=True
-MAIL_USERNAME=dhruvtandel8068@gmail.com
-MAIL_PASSWORD=rqtnttbklseutjqm
-MAIL_DEFAULT_SENDER=dhruvtandel8068@gmail.com
-RAZORPAY_KEY_ID=rzp_test_SaTgcLSxQ1CzRx
-RAZORPAY_KEY_SECRET=vmoGLOuKZ6zqjh7zYQzxwcTk
-FRONTEND_URL=https://mess-mate-pro-full-stack-52li.vercel.app/
+# OS
+.DS_Store
