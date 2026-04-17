@@ -110,6 +110,34 @@ export default function Menu() {
     );
   }, [items, search]);
 
+  const mealOrder = {
+    breakfast: 1,
+    lunch: 2,
+    dinner: 3,
+  };
+
+  const groupedItems = useMemo(() => {
+    const sorted = [...filteredItems].sort((a, b) => {
+      if (a.meal_date !== b.meal_date) {
+        return new Date(b.meal_date) - new Date(a.meal_date);
+      }
+      return (
+        (mealOrder[a.meal_type?.toLowerCase()] || 99) -
+        (mealOrder[b.meal_type?.toLowerCase()] || 99)
+      );
+    });
+
+    const grouped = sorted.reduce((acc, row) => {
+      if (!acc[row.meal_date]) {
+        acc[row.meal_date] = [];
+      }
+      acc[row.meal_date].push(row);
+      return acc;
+    }, {});
+
+    return Object.entries(grouped);
+  }, [filteredItems]);
+
   const specialMealsCount = items.filter((i) => i.is_special).length;
 
   return (
@@ -273,49 +301,69 @@ export default function Menu() {
               </tr>
             </thead>
             <tbody>
-              {filteredItems.map((row) => (
-                <tr key={row.id}>
-                  <td>{formatDate(row.meal_date)}</td>
-                  <td>
-                    <span className="badge badge-info">{row.meal_type}</span>
-                  </td>
-                  <td>
-                    <strong>{row.item_name}</strong>
-                  </td>
-                  <td>{row.description || "-"}</td>
-                  <td>₹{Number(row.price || 0).toFixed(2)}</td>
-                  <td>
-                    {row.is_special ? (
-                      <span className="badge badge-warning">Special</span>
-                    ) : (
-                      "-"
-                    )}
-                  </td>
-                  <td>{row.cutoff_time || "-"}</td>
-                  {isAdmin && (
-                    <td>
-                      <div className="button-group">
-                        <button
-                          className="button button-secondary"
-                          type="button"
-                          onClick={() => handleEdit(row)}
+              {groupedItems.length > 0 ? (
+                groupedItems.map(([date, rows]) =>
+                  rows.map((row, index) => (
+                    <tr key={row.id}>
+                      {index === 0 && (
+                        <td
+                          rowSpan={rows.length}
+                          style={{
+                            verticalAlign: "top",
+                            fontWeight: "700",
+                            minWidth: "130px",
+                          }}
                         >
-                          Edit
-                        </button>
-                        <button
-                          className="button button-danger"
-                          type="button"
-                          onClick={() => handleDelete(row.id)}
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </td>
-                  )}
-                </tr>
-              ))}
+                          {formatDate(date)}
+                        </td>
+                      )}
 
-              {!filteredItems.length && (
+                      <td>
+                        <span className="badge badge-info">{row.meal_type}</span>
+                      </td>
+
+                      <td>
+                        <strong>{row.item_name}</strong>
+                      </td>
+
+                      <td>{row.description || "-"}</td>
+
+                      <td>₹{Number(row.price || 0).toFixed(2)}</td>
+
+                      <td>
+                        {row.is_special ? (
+                          <span className="badge badge-warning">Special</span>
+                        ) : (
+                          "-"
+                        )}
+                      </td>
+
+                      <td>{row.cutoff_time || "-"}</td>
+
+                      {isAdmin && (
+                        <td>
+                          <div className="button-group">
+                            <button
+                              className="button button-secondary"
+                              type="button"
+                              onClick={() => handleEdit(row)}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              className="button button-danger"
+                              type="button"
+                              onClick={() => handleDelete(row.id)}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </td>
+                      )}
+                    </tr>
+                  ))
+                )
+              ) : (
                 <tr>
                   <td colSpan={isAdmin ? 8 : 7}>
                     <div className="empty-state">No menu items found.</div>
