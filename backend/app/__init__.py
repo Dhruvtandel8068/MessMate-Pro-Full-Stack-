@@ -52,48 +52,20 @@ def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
 
-    # Force production DB config from environment variables (Aiven MySQL)
-    mysql_host = os.getenv("MYSQL_HOST")
-    mysql_port = os.getenv("MYSQL_PORT", "3306")
-    mysql_user = os.getenv("MYSQL_USER")
-    mysql_password = os.getenv("MYSQL_PASSWORD")
-    mysql_db = os.getenv("MYSQL_DB")
-
-    if mysql_host and mysql_user and mysql_password and mysql_db:
-        app.config["SQLALCHEMY_DATABASE_URI"] = (
-            f"mysql+pymysql://{mysql_user}:"
-            f"{mysql_password}@"
-            f"{mysql_host}:"
-            f"{mysql_port}/"
-            f"{mysql_db}"
-        )
-
-        app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
-            "pool_pre_ping": True,
-            "connect_args": {
-                "ssl": {}
-            }
-        }
-
     upload_folder = app.config.get("UPLOAD_FOLDER", "uploads")
     os.makedirs(upload_folder, exist_ok=True)
     app.config["UPLOAD_FOLDER"] = upload_folder
-
-    frontend_url = os.getenv("FRONTEND_URL", "").strip()
-    allowed_origins = [
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:5174",
-        "http://127.0.0.1:5174",
-    ]
-    if frontend_url:
-        allowed_origins.append(frontend_url)
 
     CORS(
         app,
         resources={
             r"/api/*": {
-                "origins": allowed_origins
+                "origins": [
+                    "http://localhost:5173",
+                    "http://127.0.0.1:5173",
+                    "http://localhost:5174",
+                    "http://127.0.0.1:5174",
+                ]
             }
         },
         supports_credentials=True,
@@ -131,13 +103,13 @@ def create_app():
     @app.get("/")
     def home():
         return {
-            "message": "MessMate Pro backend is running successfully"
+            "message": "MessMate Pro backend is running successfully on localhost"
         }, 200
 
     @app.get("/api")
     def api_home():
         return {
-            "message": "MessMate Pro API is running successfully"
+            "message": "MessMate Pro API is running successfully on localhost"
         }, 200
 
     @app.get("/api/uploads/<path:filename>")
