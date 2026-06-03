@@ -7,6 +7,10 @@ from app.utils.db import db
 from app.models.leave import Leave
 from app.models.user import User
 from app.models.notification import Notification
+from app.services.email_service import (
+    send_leave_approved_email,
+    send_leave_rejected_email,
+)
 
 leave_bp = Blueprint("leave_bp", __name__)
 
@@ -179,9 +183,20 @@ def approve_leave(leave_id):
 
         db.session.commit()
 
+        email_sent = False
+        if leave.user and leave.user.email:
+            email_sent = send_leave_approved_email(
+                user_email=leave.user.email,
+                user_name=leave.user.full_name,
+                start_date=leave.start_date,
+                end_date=leave.end_date,
+                admin_remark=leave.admin_remark,
+            )
+
         return jsonify({
             "message": "Leave approved successfully",
             "leave": leave.to_dict(),
+            "email_sent": email_sent,
         }), 200
 
     except Exception as e:
@@ -221,9 +236,20 @@ def reject_leave(leave_id):
 
         db.session.commit()
 
+        email_sent = False
+        if leave.user and leave.user.email:
+            email_sent = send_leave_rejected_email(
+                user_email=leave.user.email,
+                user_name=leave.user.full_name,
+                start_date=leave.start_date,
+                end_date=leave.end_date,
+                admin_remark=leave.admin_remark,
+            )
+
         return jsonify({
             "message": "Leave rejected successfully",
             "leave": leave.to_dict(),
+            "email_sent": email_sent,
         }), 200
 
     except Exception as e:

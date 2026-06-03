@@ -79,3 +79,43 @@ Regards,
 Mess Operations Team
 """
     return send_email(subject, [user_email], body)
+
+
+def send_leave_approved_email(user_email, user_name, start_date, end_date, admin_remark=""):
+    subject = "Leave Approved Successfully"
+    body = f"""
+Hello {user_name},
+
+Your leave request has been approved successfully.
+
+Leave Duration:
+From: {start_date}
+To: {end_date}
+
+Admin Remark:
+{admin_remark if admin_remark else "Approved by admin"}
+
+Regards,
+MessMate Pro Team
+"""
+    return send_email(subject, [user_email], body)
+
+
+def send_leave_rejected_email(user_email, user_name, start_date, end_date, admin_remark=""):
+    subject = "Leave Rejected"
+    body = f"""
+Hello {user_name},
+
+Your leave request has been rejected.
+
+Leave Duration:
+From: {start_date}
+To: {end_date}
+
+Admin Remark:
+{admin_remark if admin_remark else "Rejected by admin"}
+
+Regards,
+MessMate Pro Team
+"""
+    return send_email(subject, [user_email], body)
